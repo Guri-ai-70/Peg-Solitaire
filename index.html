@@ -53,9 +53,8 @@
     border:2px solid var(--board-edge); }
   .board { display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(7,1fr);
     gap:clamp(4px,1.4vw,9px); width:min(88vw,56vh,420px); aspect-ratio:1/1; }
-  .cell { position:relative; cursor:pointer; }
+  .cell { position:relative; }
   .cell.void { visibility:hidden; }
-  .hole, .peg { pointer-events:none; }
   .hole { position:absolute; inset:0; border-radius:50%;
     background:radial-gradient(circle at 50% 38%, var(--hole), var(--hole-deep) 75%);
     box-shadow:inset 0 3px 5px rgba(0,0,0,0.8), inset 0 -2px 3px rgba(120,80,40,0.25); }
