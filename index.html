@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#3a2718">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Solitaire">
+<title>Peg Solitaire</title>
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Peg%20Solitaire%22%2C%22short_name%22%3A%22Solitaire%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%233a2718%22%2C%22theme_color%22%3A%22%233a2718%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520100%2520100%2522%253E%253Crect%2520width%253D%2522100%2522%2520height%253D%2522100%2522%2520rx%253D%252220%2522%2520fill%253D%2522%252343301d%2522%252F%253E%253Ccircle%2520cx%253D%252250%2522%2520cy%253D%252250%2522%2520r%253D%252222%2522%2520fill%253D%2522%2523d99a4e%2522%252F%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+<style>
+  :root {
+    --bg1:#4a3220; --bg2:#3a2718; --bg3:#2a1c10;
+    --board:#6b4423; --board-light:#8a5a2f; --board-edge:#2e1c0e;
+    --hole:#3d2613; --hole-deep:#1d1107;
+    --peg-top:#e8b765; --peg-mid:#d99a4e; --peg-low:#a86a26;
+    --peg-rim-dark:rgba(80,45,10,0.6); --peg-rim-light:rgba(255,235,190,0.7);
+    --accent:#f0c674; --text:#f5e6c8;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    margin:0; height:100%;
+    background:radial-gradient(ellipse at 50% 20%, var(--bg1) 0%, var(--bg2) 55%, var(--bg3) 100%);
+    font-family:"Iowan Old Style", Georgia, "Times New Roman", serif;
+    color:var(--text); overflow:hidden; touch-action:manipulation;
+  }
+  body { display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom); gap:clamp(10px,3vh,22px); }
+
+  .gear { position:fixed; top:calc(env(safe-area-inset-top) + 12px); right:14px;
+    width:42px; height:42px; border-radius:50%; z-index:20; display:grid; place-items:center; font-size:22px;
+    color:var(--text); border:1px solid var(--board-edge);
+    background:linear-gradient(180deg, var(--board-light), var(--board));
+    box-shadow:inset 0 1px 2px rgba(255,220,170,0.3), 0 3px 6px rgba(0,0,0,0.4); cursor:pointer; }
+  .gear:active { filter:brightness(1.1); }
+
+  header { text-align:center; }
+  h1 { margin:0; font-size:clamp(22px,6vw,34px); font-weight:600; letter-spacing:0.06em;
+    color:var(--accent); text-shadow:0 2px 4px rgba(0,0,0,0.6); }
+  .sub { margin:4px 0 0; font-size:13px; opacity:0.7; font-style:italic; }
+
+  .status { display:flex; gap:22px; align-items:baseline; font-size:15px; min-height:22px; }
+  .pegs-left b { font-size:22px; color:var(--accent); }
+  .msg { font-style:italic; }
+  .msg.win { color:#9ad28f; font-weight:600; }
+  .msg.lose { color:#e0926a; }
+
+  .board-wrap { position:relative; padding:clamp(14px,4vw,26px); border-radius:18px;
+    background:repeating-linear-gradient(91deg, rgba(0,0,0,0.06) 0 3px, transparent 3px 9px),
+      linear-gradient(150deg, var(--board-light), var(--board) 45%, var(--board-edge) 130%);
+    box-shadow:inset 0 2px 3px rgba(255,220,170,0.35), inset 0 -3px 6px rgba(0,0,0,0.5), 0 14px 30px rgba(0,0,0,0.55);
+    border:2px solid var(--board-edge); }
+  .board { display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(7,1fr);
+    gap:clamp(4px,1.4vw,9px); width:min(88vw,56vh,420px); aspect-ratio:1/1; }
+  .cell { position:relative; cursor:pointer; }
+  .cell.void { visibility:hidden; }
+  .hole, .peg { pointer-events:none; }
+  .hole { position:absolute; inset:0; border-radius:50%;
+    background:radial-gradient(circle at 50% 38%, var(--hole), var(--hole-deep) 75%);
+    box-shadow:inset 0 3px 5px rgba(0,0,0,0.8), inset 0 -2px 3px rgba(120,80,40,0.25); }
+  .peg { position:absolute; inset:8%; border-radius:50%;
+    background:radial-gradient(circle at 38% 30%, var(--peg-top), var(--peg-mid) 55%, var(--peg-low) 100%);
+    box-shadow:inset 0 -3px 5px var(--peg-rim-dark), inset 0 2px 4px var(--peg-rim-light), 0 3px 5px rgba(0,0,0,0.45);
+    transition:transform 0.12s ease, box-shadow 0.12s ease, opacity 0.18s ease; cursor:pointer; }
+  .peg.selected { transform:scale(1.06);
+    box-shadow:inset 0 -3px 5px var(--peg-rim-dark), inset 0 2px 4px var(--peg-rim-light), 0 0 0 3px var(--accent), 0 0 14px var(--accent); z-index:3; }
+  .cell.target .hole { box-shadow:inset 0 3px 5px rgba(0,0,0,0.8), 0 0 0 3px var(--accent), 0 0 12px rgba(240,198,116,0.7); cursor:pointer; }
+  .cell.target::after { content:""; position:absolute; inset:30%; border-radius:50%;
+    background:var(--accent); opacity:0.35; animation:pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(0.7);opacity:0.2} 50%{transform:scale(1);opacity:0.45} }
+
+  .controls { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+  button.btn { font-family:inherit; font-size:15px; color:var(--text);
+    padding:10px 20px; border-radius:11px; border:1px solid var(--board-edge);
+    background:linear-gradient(180deg, var(--board-light), var(--board));
+    box-shadow:inset 0 1px 2px rgba(255,220,170,0.3), 0 3px 6px rgba(0,0,0,0.4);
+    cursor:pointer; transition:transform 0.1s, filter 0.1s; }
+  button.btn:active { transform:translateY(1px); filter:brightness(1.1); }
+
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:30;
+    display:none; align-items:center; justify-content:center; padding:16px; }
+  .overlay.open { display:flex; }
+  .panel { width:min(92vw,360px); border-radius:16px; padding:20px;
+    background:linear-gradient(160deg, var(--board-light), var(--board) 60%, var(--board-edge) 130%);
+    border:2px solid var(--board-edge); box-shadow:0 18px 40px rgba(0,0,0,0.6); color:var(--text); }
+  .panel h2 { margin:0 0 14px; font-size:20px; color:var(--accent); }
+  .panel .group { margin-bottom:18px; }
+  .panel .label { font-size:13px; opacity:0.75; margin-bottom:8px; letter-spacing:0.04em; text-transform:uppercase; }
+  .swatches { display:flex; gap:10px; flex-wrap:wrap; }
+  .swatch { width:46px; height:46px; border-radius:12px; cursor:pointer; border:2px solid transparent;
+    box-shadow:0 2px 5px rgba(0,0,0,0.4); transition:transform 0.1s; }
+  .swatch:active { transform:scale(0.95); }
+  .swatch.active { border-color:var(--text); box-shadow:0 0 0 2px var(--accent), 0 2px 5px rgba(0,0,0,0.4); }
+  .opts { display:flex; gap:10px; flex-wrap:wrap; }
+  .opt { padding:9px 16px; border-radius:10px; cursor:pointer; font-size:14px;
+    border:1px solid var(--board-edge); background:rgba(0,0,0,0.18); transition:transform 0.1s; }
+  .opt:active { transform:scale(0.96); }
+  .opt.active { background:var(--accent); color:#2a1c10; font-weight:600; }
+  .panel .close { width:100%; margin-top:6px; }
+
+  @media (prefers-reduced-motion: reduce) { .peg, .cell.target::after { animation:none; transition:none; } }
+</style>
+</head>
+<body>
+  <button class="gear" id="gear" aria-label="Settings">&#9881;</button>
+
+  <header>
+    <h1>Peg Solitaire</h1>
+    <p class="sub">Jump pegs over neighbours. Leave one.</p>
+  </header>
+
+  <div class="status">
+    <span class="pegs-left">Pegs left: <b id="count">32</b></span>
+    <span class="msg" id="msg"></span>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="undo">Undo</button>
+    <button class="btn" id="reset">New game</button>
+    <!-- Future feature: <button class="btn" id="solve">The Solution</button> -->
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h2>Settings</h2>
+      <div class="group">
+        <div class="label">Board colour</div>
+        <div class="swatches" id="boardSwatches"></div>
+      </div>
+      <div class="group">
+        <div class="label">Peg style</div>
+        <div class="opts" id="pegOpts"></div>
+      </div>
+      <button class="btn close" id="closeSettings">Done</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var boardThemes = {
+    walnut:{ name:"Walnut", swatch:"#6b4423",
+      v:{ "--bg1":"#4a3220","--bg2":"#3a2718","--bg3":"#2a1c10","--board":"#6b4423","--board-light":"#8a5a2f","--board-edge":"#2e1c0e","--hole":"#3d2613","--hole-deep":"#1d1107","--accent":"#f0c674","--text":"#f5e6c8" } },
+    ebony:{ name:"Ebony", swatch:"#3a3b40",
+      v:{ "--bg1":"#33343a","--bg2":"#212227","--bg3":"#141417","--board":"#3a3b40","--board-light":"#54565d","--board-edge":"#141416","--hole":"#1c1c20","--hole-deep":"#0a0a0c","--accent":"#cdb98a","--text":"#e8e6df" } },
+    forest:{ name:"Forest", swatch:"#356046",
+      v:{ "--bg1":"#2f4a39","--bg2":"#21382b","--bg3":"#14261d","--board":"#356046","--board-light":"#447a59","--board-edge":"#16301f","--hole":"#1c3527","--hole-deep":"#0c1d14","--accent":"#e6c878","--text":"#eef3e8" } },
+    slate:{ name:"Slate", swatch:"#4c5d73",
+      v:{ "--bg1":"#414f63","--bg2":"#2f3a49","--bg3":"#1d2530","--board":"#4c5d73","--board-light":"#677a92","--board-edge":"#1c2530","--hole":"#2a3543","--hole-deep":"#141b24","--accent":"#e8c98a","--text":"#eef1f6" } },
+    cherry:{ name:"Cherry", swatch:"#823a2c",
+      v:{ "--bg1":"#5a2c22","--bg2":"#46211a","--bg3":"#311610","--board":"#823a2c","--board-light":"#a04e3c","--board-edge":"#2e120c","--hole":"#491e16","--hole-deep":"#260e09","--accent":"#f0c674","--text":"#f6e6dc" } }
+  };
+  var pegStyles = {
+    wood:{ name:"Wood",
+      v:{ "--peg-top":"#e8b765","--peg-mid":"#d99a4e","--peg-low":"#a86a26","--peg-rim-dark":"rgba(80,45,10,0.6)","--peg-rim-light":"rgba(255,235,190,0.7)" } },
+    marble:{ name:"Marble",
+      v:{ "--peg-top":"#ffffff","--peg-mid":"#dfe2e8","--peg-low":"#9aa1ad","--peg-rim-dark":"rgba(70,80,95,0.55)","--peg-rim-light":"rgba(255,255,255,0.95)" } },
+    gold:{ name:"Gold",
+      v:{ "--peg-top":"#fff3b0","--peg-mid":"#f2c84b","--peg-low":"#b8860b","--peg-rim-dark":"rgba(120,80,0,0.65)","--peg-rim-light":"rgba(255,250,210,0.95)" } }
+  };
+
+  var boardTheme = "walnut", pegStyle = "wood";
+
+  function applyTheme(){
+    var root = document.documentElement.style;
+    var bv = boardThemes[boardTheme].v, pv = pegStyles[pegStyle].v, k;
+    for(k in bv) root.setProperty(k, bv[k]);
+    for(k in pv) root.setProperty(k, pv[k]);
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", bv["--bg2"]);
+  }
+
+  var layout = [
+    [0,0,1,1,1,0,0],[0,0,1,1,1,0,0],
+    [1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],
+    [0,0,1,1,1,0,0],[0,0,1,1,1,0,0]
+  ];
+  var N = 7;
+  var boardEl = document.getElementById("board");
+  var countEl = document.getElementById("count");
+  var msgEl = document.getElementById("msg");
+  var pegs, selected = null, history = [];
+
+  function init(){
+    pegs = layout.map(function(row){ return row.map(function(v){ return v ? true : null; }); });
+    pegs[3][3] = false;
+    selected = null; history = [];
+    render(); setMsg("");
+  }
+  function inBounds(r,c){ return r>=0&&r<N&&c>=0&&c<N; }
+  function isCell(r,c){ return inBounds(r,c)&&pegs[r][c]!==null; }
+  function movesFrom(r,c){
+    var out=[], dirs=[[-2,0],[2,0],[0,-2],[0,2]], i, tr, tc, mr, mc;
+    for(i=0;i<dirs.length;i++){
+      tr=r+dirs[i][0]; tc=c+dirs[i][1]; mr=r+dirs[i][0]/2; mc=c+dirs[i][1]/2;
+      if(isCell(tr,tc)&&pegs[tr][tc]===false&&isCell(mr,mc)&&pegs[mr][mc]===true) out.push({tr:tr,tc:tc,mr:mr,mc:mc});
+    }
+    return out;
+  }
+  function anyMovesLeft(){
+    for(var r=0;r<N;r++)for(var c=0;c<N;c++)
+      if(pegs[r][c]===true&&movesFrom(r,c).length) return true;
+    return false;
+  }
+  function countPegs(){ var n=0; for(var r=0;r<N;r++)for(var c=0;c<N;c++) if(pegs[r][c]===true)n++; return n; }
+  function setMsg(t,cls){ msgEl.textContent=t; msgEl.className="msg"+(cls?" "+cls:""); }
+  function select(r,c){ selected={r:r,c:c}; render(); }
+  function doMove(r,c,mv){
+    history.push(pegs.map(function(row){ return row.slice(); }));
+    pegs[r][c]=false; pegs[mv.mr][mv.mc]=false; pegs[mv.tr][mv.tc]=true;
+    selected=null; render(); checkEnd();
+  }
+  function checkEnd(){
+    var n=countPegs();
+    if(n===1) setMsg(pegs[3][3]===true?"Perfect — solved!":"Solved! One peg left.","win");
+    else if(!anyMovesLeft()) setMsg("No moves left — "+n+" pegs remain.","lose");
+  }
+  function onCellClick(r,c){
+    var v=pegs[r][c]; if(v===null) return;
+    if(selected&&v===false){
+      var mv=movesFrom(selected.r,selected.c).find(function(m){ return m.tr===r&&m.tc===c; });
+      if(mv){ doMove(selected.r,selected.c,mv); return; }
+    }
+    if(v===true){
+      if(selected&&selected.r===r&&selected.c===c){ selected=null; render(); return; }
+      if(movesFrom(r,c).length) select(r,c); else { selected=null; render(); }
+    } else { selected=null; render(); }
+  }
+  function render(){
+    boardEl.innerHTML="";
+    var targets = selected?movesFrom(selected.r,selected.c):[];
+    for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+      (function(r,c){
+        var cell=document.createElement("div"); cell.className="cell";
+        var v=pegs[r][c];
+        if(v===null){ cell.classList.add("void"); boardEl.appendChild(cell); return; }
+        var hole=document.createElement("div"); hole.className="hole"; cell.appendChild(hole);
+        if(v===true){
+          var peg=document.createElement("div"); peg.className="peg";
+          if(selected&&selected.r===r&&selected.c===c) peg.classList.add("selected");
+          cell.appendChild(peg);
+        }
+        if(targets.some(function(m){ return m.tr===r&&m.tc===c; })) cell.classList.add("target");
+        cell.addEventListener("click",function(){ onCellClick(r,c); });
+        boardEl.appendChild(cell);
+      })(r,c);
+    }
+    countEl.textContent=countPegs();
+  }
+
+  var overlay = document.getElementById("overlay");
+  var boardSwatches = document.getElementById("boardSwatches");
+  var pegOpts = document.getElementById("pegOpts");
+  function buildSettings(){
+    boardSwatches.innerHTML="";
+    Object.keys(boardThemes).forEach(function(key){
+      var t=boardThemes[key];
+      var s=document.createElement("div");
+      s.className="swatch"+(key===boardTheme?" active":"");
+      s.style.background=t.swatch; s.title=t.name;
+      s.addEventListener("click",function(){ boardTheme=key; applyTheme(); buildSettings(); });
+      boardSwatches.appendChild(s);
+    });
+    pegOpts.innerHTML="";
+    Object.keys(pegStyles).forEach(function(key){
+      var p=pegStyles[key];
+      var o=document.createElement("div");
+      o.className="opt"+(key===pegStyle?" active":"");
+      o.textContent=p.name;
+      o.addEventListener("click",function(){ pegStyle=key; applyTheme(); buildSettings(); });
+      pegOpts.appendChild(o);
+    });
+  }
+  document.getElementById("gear").addEventListener("click",function(){ buildSettings(); overlay.classList.add("open"); });
+  document.getElementById("closeSettings").addEventListener("click",function(){ overlay.classList.remove("open"); });
+  overlay.addEventListener("click",function(e){ if(e.target===overlay) overlay.classList.remove("open"); });
+
+  document.getElementById("reset").addEventListener("click",init);
+  document.getElementById("undo").addEventListener("click",function(){
+    if(!history.length) return;
+    pegs=history.pop(); selected=null; render(); setMsg("");
+  });
+
+  applyTheme();
+  init();
+})();
+</script>
+</body>
+</html>
