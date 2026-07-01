@@ -53,8 +53,9 @@
     border:2px solid var(--board-edge); }
   .board { display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(7,1fr);
     gap:clamp(4px,1.4vw,9px); width:min(88vw,56vh,420px); aspect-ratio:1/1; }
-  .cell { position:relative; }
+  .cell { position:relative; cursor:pointer; }
   .cell.void { visibility:hidden; }
+  .hole, .peg { pointer-events:none; }
   .hole { position:absolute; inset:0; border-radius:50%;
     background:radial-gradient(circle at 50% 38%, var(--hole), var(--hole-deep) 75%);
     box-shadow:inset 0 3px 5px rgba(0,0,0,0.8), inset 0 -2px 3px rgba(120,80,40,0.25); }
@@ -76,6 +77,10 @@
     box-shadow:inset 0 1px 2px rgba(255,220,170,0.3), 0 3px 6px rgba(0,0,0,0.4);
     cursor:pointer; transition:transform 0.1s, filter 0.1s; }
   button.btn:active { transform:translateY(1px); filter:brightness(1.1); }
+  button.btn.solve { border:2px solid var(--accent); box-shadow:inset 0 1px 2px rgba(255,220,170,0.3), 0 0 10px rgba(240,198,116,0.5), 0 3px 6px rgba(0,0,0,0.4); }
+  button.btn:disabled { opacity:0.5; cursor:default; }
+  .cell.solving-from .peg { box-shadow:inset 0 -3px 5px var(--peg-rim-dark), inset 0 2px 4px var(--peg-rim-light), 0 0 0 3px #e0926a, 0 0 16px #e0926a; transform:scale(1.08); z-index:3; }
+  .cell.solving-to .hole { box-shadow:inset 0 3px 5px rgba(0,0,0,0.8), 0 0 0 3px #9ad28f, 0 0 14px #9ad28f; }
 
   .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:30;
     display:none; align-items:center; justify-content:center; padding:16px; }
@@ -121,7 +126,7 @@
   <div class="controls">
     <button class="btn" id="undo">Undo</button>
     <button class="btn" id="reset">New game</button>
-    <!-- Future feature: <button class="btn" id="solve">The Solution</button> -->
+    <button class="btn solve" id="solve">Solve</button>
   </div>
 
   <div class="overlay" id="overlay">
@@ -277,10 +282,80 @@
   document.getElementById("closeSettings").addEventListener("click",function(){ overlay.classList.remove("open"); });
   overlay.addEventListener("click",function(e){ if(e.target===overlay) overlay.classList.remove("open"); });
 
-  document.getElementById("reset").addEventListener("click",init);
+  document.getElementById("reset").addEventListener("click",function(){ if(solving) return; init(); });
   document.getElementById("undo").addEventListener("click",function(){
+    if(solving) return;
     if(!history.length) return;
     pegs=history.pop(); selected=null; render(); setMsg("");
+  });
+
+  /* ---------- SOLVE (password-gated animated solution) ---------- */
+  // Verified 31-move solution from the standard start (centre empty) ending
+  // with a single peg in the centre. Each entry: [fromR,fromC,toR,toC].
+  var SOLUTION = [[1,3,3,3],[2,1,2,3],[0,2,2,2],[0,4,0,2],[2,3,2,1],[2,0,2,2],[2,4,0,4],[2,6,2,4],[3,2,1,2],[0,2,2,2],[3,0,3,2],[3,2,1,2],[3,4,1,4],[0,4,2,4],[3,6,3,4],[3,4,1,4],[5,2,3,2],[4,0,4,2],[4,2,2,2],[1,2,3,2],[3,2,3,4],[4,4,2,4],[1,4,3,4],[4,6,4,4],[4,3,4,5],[6,4,4,4],[3,4,5,4],[6,2,6,4],[6,4,4,4],[4,5,4,3],[5,3,3,3]];
+  var SOLVE_PASSWORD = "1960";
+  var solving = false;
+
+  function setControlsDisabled(d){
+    document.getElementById("undo").disabled=d;
+    document.getElementById("reset").disabled=d;
+    document.getElementById("solve").disabled=d;
+    document.getElementById("gear").disabled=d;
+  }
+
+  function highlightMove(fr,fc,tr,tc){
+    var cells=boardEl.children, i=0, r, c;
+    for(r=0;r<N;r++)for(c=0;c<N;c++){
+      var cell=cells[i++];
+      if(!cell) continue;
+      cell.classList.remove("solving-from","solving-to");
+      if(r===fr&&c===fc) cell.classList.add("solving-from");
+      if(r===tr&&c===tc) cell.classList.add("solving-to");
+    }
+  }
+
+  function runSolution(){
+    // reset to the standard starting position, then play the moves
+    init();
+    solving=true;
+    setControlsDisabled(true);
+    setMsg("Watch the solution…");
+    var step=0;
+    var stepDelay=850;   // pause showing which move is next
+    var jumpDelay=650;   // pause after the jump
+
+    function next(){
+      if(step>=SOLUTION.length){
+        solving=false;
+        setControlsDisabled(false);
+        // clear highlights
+        var cells=boardEl.children, k;
+        for(k=0;k<cells.length;k++) cells[k].classList.remove("solving-from","solving-to");
+        checkEnd();
+        return;
+      }
+      var m=SOLUTION[step];
+      var fr=m[0],fc=m[1],tr=m[2],tc=m[3];
+      highlightMove(fr,fc,tr,tc);
+      setTimeout(function(){
+        var mr=(fr+tr)/2, mc=(fc+tc)/2;
+        history.push(pegs.map(function(row){ return row.slice(); }));
+        pegs[fr][fc]=false; pegs[mr][mc]=false; pegs[tr][tc]=true;
+        render();
+        step++;
+        setMsg("Move "+step+" of "+SOLUTION.length);
+        setTimeout(next, jumpDelay);
+      }, stepDelay);
+    }
+    setTimeout(next, 500);
+  }
+
+  document.getElementById("solve").addEventListener("click",function(){
+    if(solving) return;
+    var entry=window.prompt("Enter password to watch the solution:");
+    if(entry===null) return;                 // cancelled
+    if(entry.trim()!==SOLVE_PASSWORD){ setMsg("Wrong password.","lose"); return; }
+    runSolution();
   });
 
   applyTheme();
