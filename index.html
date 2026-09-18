@@ -46,12 +46,22 @@
   .msg.win { color:#9ad28f; font-weight:600; }
   .msg.lose { color:#e0926a; }
 
-  .board-wrap { position:relative; padding:clamp(14px,4vw,26px); border-radius:18px;
+  .board-wrap { position:relative; padding:clamp(14px,4vw,26px); padding-top:clamp(26px,7vw,42px); border-radius:18px;
     background:repeating-linear-gradient(91deg, rgba(0,0,0,0.06) 0 3px, transparent 3px 9px),
       linear-gradient(150deg, var(--board-light), var(--board) 45%, var(--board-edge) 130%);
     box-shadow:inset 0 2px 3px rgba(255,220,170,0.35), inset 0 -3px 6px rgba(0,0,0,0.5), 0 14px 30px rgba(0,0,0,0.55);
     border:2px solid var(--board-edge); }
-  .board { display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(7,1fr);
+  .board-frame { display:grid;
+    grid-template-columns: clamp(16px,4.5vw,22px) min(88vw,56vh,420px);
+    grid-template-rows: min(88vw,56vh,420px) clamp(16px,4.5vw,22px);
+    gap:clamp(4px,1.4vw,9px); }
+  .col-labels { grid-column:2; grid-row:2; display:grid; grid-template-columns:repeat(7,1fr);
+    gap:clamp(4px,1.4vw,9px); align-items:center; justify-items:center;
+    font-size:clamp(15px,3.4vw,18px); color:var(--accent); opacity:0.85; }
+  .row-labels { grid-column:1; grid-row:1; display:grid; grid-template-rows:repeat(7,1fr);
+    gap:clamp(4px,1.4vw,9px); align-items:center; justify-items:center;
+    font-size:clamp(15px,3.4vw,18px); color:var(--accent); opacity:0.85; }
+  .board { grid-column:2; grid-row:1; display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:repeat(7,1fr);
     gap:clamp(4px,1.4vw,9px); width:min(88vw,56vh,420px); aspect-ratio:1/1; }
   .cell { position:relative; cursor:pointer; }
   .cell.void { visibility:hidden; }
@@ -103,6 +113,25 @@
   .opt.active { background:var(--accent); color:#2a1c10; font-weight:600; }
   .panel .close { width:100%; margin-top:6px; }
 
+  .choice-row { display:flex; gap:12px; margin-top:6px; }
+  .choice-row .btn { flex:1; }
+
+  .print-table { width:100%; border-collapse:collapse; margin:10px 0 16px; font-size:14px; }
+  .print-table th, .print-table td { padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.15); }
+  .print-table th { color:var(--accent); font-weight:600; }
+  .print-scroll { max-height:50vh; overflow-y:auto; }
+
+  @media print {
+    body * { visibility:hidden; }
+    .print-panel, .print-panel * { visibility:visible; }
+    .print-panel { position:static; inset:auto; background:#fff; color:#111; padding:20px; width:100% !important; max-width:none !important; }
+    .print-panel .print-scroll { max-height:none; overflow:visible; }
+    .print-panel .print-table { page-break-inside:auto; }
+    .print-panel .print-table tr { page-break-inside:avoid; }
+    .print-panel .print-table th, .print-panel .print-table td { color:#111; border-bottom:1px solid #999; }
+    .print-panel .btn, .print-panel .print-only-hide { display:none; }
+  }
+
   @media (prefers-reduced-motion: reduce) { .peg, .cell.target::after { animation:none; transition:none; } }
 </style>
 </head>
@@ -120,7 +149,11 @@
   </div>
 
   <div class="board-wrap">
-    <div class="board" id="board"></div>
+    <div class="board-frame">
+      <div class="col-labels" id="colLabels"></div>
+      <div class="row-labels" id="rowLabels"></div>
+      <div class="board" id="board"></div>
+    </div>
   </div>
 
   <div class="controls">
@@ -141,6 +174,34 @@
         <div class="opts" id="pegOpts"></div>
       </div>
       <button class="btn close" id="closeSettings">Done</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="choiceOverlay">
+    <div class="panel">
+      <h2>Show the solution</h2>
+      <p style="margin:0 0 4px; opacity:0.85;">How would you like to see it?</p>
+      <div class="choice-row">
+        <button class="btn" id="choiceView">View</button>
+        <button class="btn" id="choicePrint">Print</button>
+      </div>
+      <button class="btn close" id="choiceCancel">Cancel</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="printOverlay">
+    <div class="panel print-panel" style="width:min(92vw,420px);">
+      <h2>Solution — move list</h2>
+      <div class="print-scroll">
+        <table class="print-table" id="printTable">
+          <thead><tr><th>#</th><th>From</th><th>To</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="choice-row print-only-hide">
+        <button class="btn" id="printGo">Print</button>
+        <button class="btn close" id="printClose">Close</button>
+      </div>
     </div>
   </div>
 
@@ -187,6 +248,19 @@
   var countEl = document.getElementById("count");
   var msgEl = document.getElementById("msg");
   var pegs, selected = null, history = [];
+
+  function toAlg(r,c){ return String.fromCharCode(65+c) + (7-r); }
+
+  function buildCoordLabels(){
+    var colEl=document.getElementById("colLabels"), rowEl=document.getElementById("rowLabels"), i;
+    colEl.innerHTML=""; rowEl.innerHTML="";
+    for(i=0;i<7;i++){
+      var col=document.createElement("div"); col.textContent=String.fromCharCode(65+i); colEl.appendChild(col);
+    }
+    for(i=0;i<7;i++){
+      var row=document.createElement("div"); row.textContent=String(7-i); rowEl.appendChild(row);
+    }
+  }
 
   function init(){
     pegs = layout.map(function(row){ return row.map(function(v){ return v ? true : null; }); });
@@ -343,22 +417,51 @@
         pegs[fr][fc]=false; pegs[mr][mc]=false; pegs[tr][tc]=true;
         render();
         step++;
-        setMsg("Move "+step+" of "+SOLUTION.length);
+        setMsg("Move "+step+" of "+SOLUTION.length+"  ("+toAlg(fr,fc)+" \u2192 "+toAlg(tr,tc)+")");
         setTimeout(next, jumpDelay);
       }, stepDelay);
     }
     setTimeout(next, 500);
   }
 
+  var choiceOverlay = document.getElementById("choiceOverlay");
+  var printOverlay = document.getElementById("printOverlay");
+
+  function buildPrintTable(){
+    var tbody = document.querySelector("#printTable tbody");
+    tbody.innerHTML = "";
+    SOLUTION.forEach(function(m,i){
+      var tr = document.createElement("tr");
+      var from = toAlg(m[0],m[1]), to = toAlg(m[2],m[3]);
+      tr.innerHTML = "<td>"+(i+1)+"</td><td>"+from+"</td><td>"+to+"</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
   document.getElementById("solve").addEventListener("click",function(){
     if(solving) return;
-    var entry=window.prompt("Enter password to watch the solution:");
+    var entry=window.prompt("Enter password to see the solution:");
     if(entry===null) return;                 // cancelled
     if(entry.trim()!==SOLVE_PASSWORD){ setMsg("Wrong password.","lose"); return; }
+    choiceOverlay.classList.add("open");
+  });
+  document.getElementById("choiceCancel").addEventListener("click",function(){ choiceOverlay.classList.remove("open"); });
+  choiceOverlay.addEventListener("click",function(e){ if(e.target===choiceOverlay) choiceOverlay.classList.remove("open"); });
+  document.getElementById("choiceView").addEventListener("click",function(){
+    choiceOverlay.classList.remove("open");
     runSolution();
   });
+  document.getElementById("choicePrint").addEventListener("click",function(){
+    choiceOverlay.classList.remove("open");
+    buildPrintTable();
+    printOverlay.classList.add("open");
+  });
+  document.getElementById("printGo").addEventListener("click",function(){ window.print(); });
+  document.getElementById("printClose").addEventListener("click",function(){ printOverlay.classList.remove("open"); });
+  printOverlay.addEventListener("click",function(e){ if(e.target===printOverlay) printOverlay.classList.remove("open"); });
 
   applyTheme();
+  buildCoordLabels();
   init();
 })();
 </script>
