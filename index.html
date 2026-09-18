@@ -116,15 +116,17 @@
   .choice-row { display:flex; gap:12px; margin-top:6px; }
   .choice-row .btn { flex:1; }
 
-  .print-table { width:100%; border-collapse:collapse; margin:10px 0 16px; font-size:14px; }
-  .print-table th, .print-table td { padding:6px 10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.15); }
+  .print-table { width:100%; max-width:280px; margin:10px auto 16px; border-collapse:collapse; font-size:14px; }
+  .print-table th, .print-table td { padding:5px 8px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.15); }
   .print-table th { color:var(--accent); font-weight:600; }
+  .print-table th:first-child, .print-table td:first-child { width:22%; }
   .print-scroll { max-height:50vh; overflow-y:auto; }
 
   @media print {
     body * { visibility:hidden; }
     .print-panel, .print-panel * { visibility:visible; }
-    .print-panel { position:static; inset:auto; background:#fff; color:#111; padding:20px; width:100% !important; max-width:none !important; }
+    .print-panel { position:static; inset:auto; background:#fff; color:#111; padding:20px; width:100% !important; max-width:none !important; text-align:center; }
+    .print-panel .print-table { max-width:280px; margin:10px auto 16px; }
     .print-panel .print-scroll { max-height:none; overflow:visible; }
     .print-panel .print-table { page-break-inside:auto; }
     .print-panel .print-table tr { page-break-inside:avoid; }
