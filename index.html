@@ -196,7 +196,7 @@
       <h2>Solution — move list</h2>
       <div class="print-scroll">
         <table class="print-table" id="printTable">
-          <thead><tr><th>#</th><th>To</th><th>From</th></tr></thead>
+          <thead><tr><th>#</th><th>From</th><th>To</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -435,7 +435,7 @@
     SOLUTION.forEach(function(m,i){
       var tr = document.createElement("tr");
       var from = toAlg(m[0],m[1]), to = toAlg(m[2],m[3]);
-      tr.innerHTML = "<td>"+(i+1)+"</td><td>"+to+"</td><td>"+from+"</td>";
+      tr.innerHTML = "<td>"+(i+1)+"</td><td>"+from+"</td><td>"+to+"</td>";
       tbody.appendChild(tr);
     });
   }
