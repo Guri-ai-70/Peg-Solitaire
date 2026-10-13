@@ -40,7 +40,8 @@
     color:var(--accent); text-shadow:0 2px 4px rgba(0,0,0,0.6); }
   .sub { margin:4px 0 0; font-size:13px; opacity:0.7; font-style:italic; }
 
-  .status { display:flex; gap:22px; align-items:baseline; font-size:15px; min-height:22px; }
+  .status { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 22px; align-items:baseline; font-size:15px; min-height:22px; }
+  .stat b { font-size:22px; color:var(--accent); font-variant-numeric:tabular-nums; }
   .pegs-left b { font-size:22px; color:var(--accent); }
   .msg { font-style:italic; }
   .msg.win { color:#9ad28f; font-weight:600; }
@@ -147,6 +148,8 @@
 
   <div class="status">
     <span class="pegs-left">Pegs left: <b id="count">32</b></span>
+    <span class="stat">Moves: <b id="moves">0</b></span>
+    <span class="stat">Time: <b id="time">0:00</b></span>
     <span class="msg" id="msg"></span>
   </div>
 
@@ -249,6 +252,22 @@
   var boardEl = document.getElementById("board");
   var countEl = document.getElementById("count");
   var msgEl = document.getElementById("msg");
+  var movesEl = document.getElementById("moves");
+  var timeEl = document.getElementById("time");
+
+  /* ---------- MOVE COUNTER + TIMER ---------- */
+  // Timer starts on the player's first jump, stops when the game ends.
+  var timerId = null, timerStartAt = 0, timerAccum = 0, played = false;
+  function elapsedMs(){ return timerAccum + (timerId ? Date.now()-timerStartAt : 0); }
+  function fmtTime(ms){
+    var t=Math.floor(ms/1000), h=Math.floor(t/3600), m=Math.floor(t%3600/60), s=t%60;
+    var ss=(s<10?"0":"")+s;
+    return h ? h+":"+(m<10?"0":"")+m+":"+ss : m+":"+ss;
+  }
+  function updateStats(){ movesEl.textContent=history.length; timeEl.textContent=fmtTime(elapsedMs()); }
+  function startTimer(){ if(timerId) return; timerStartAt=Date.now(); timerId=setInterval(updateStats,1000); }
+  function stopTimer(){ if(!timerId) return; timerAccum+=Date.now()-timerStartAt; clearInterval(timerId); timerId=null; }
+  function resetTimer(){ stopTimer(); timerAccum=0; played=false; }
   var pegs, selected = null, history = [];
 
   function toAlg(r,c){ return String.fromCharCode(65+c) + (7-r); }
@@ -268,6 +287,7 @@
     pegs = layout.map(function(row){ return row.map(function(v){ return v ? true : null; }); });
     pegs[3][3] = false;
     selected = null; history = [];
+    resetTimer();
     render(); setMsg("");
   }
   function inBounds(r,c){ return r>=0&&r<N&&c>=0&&c<N; }
@@ -291,10 +311,12 @@
   function doMove(r,c,mv){
     history.push(pegs.map(function(row){ return row.slice(); }));
     pegs[r][c]=false; pegs[mv.mr][mv.mc]=false; pegs[mv.tr][mv.tc]=true;
+    if(!solving){ played=true; startTimer(); }
     selected=null; render(); checkEnd();
   }
   function checkEnd(){
     var n=countPegs();
+    if(n===1||!anyMovesLeft()){ stopTimer(); updateStats(); }
     if(n===1) setMsg(pegs[3][3]===true?"Perfect — solved!":"Solved! One peg left.","win");
     else if(!anyMovesLeft()) setMsg("No moves left — "+n+" pegs remain.","lose");
   }
@@ -329,6 +351,7 @@
       })(r,c);
     }
     countEl.textContent=countPegs();
+    updateStats();
   }
 
   var overlay = document.getElementById("overlay");
@@ -362,7 +385,9 @@
   document.getElementById("undo").addEventListener("click",function(){
     if(solving) return;
     if(!history.length) return;
-    pegs=history.pop(); selected=null; render(); setMsg("");
+    pegs=history.pop(); selected=null;
+    if(played && countPegs()>1 && anyMovesLeft()) startTimer();  // game resumes after undo
+    render(); setMsg("");
   });
 
   /* ---------- SOLVE (password-gated animated solution) ---------- */
